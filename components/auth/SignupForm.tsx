@@ -1,12 +1,79 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 export default function SignupForm() {
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState("");
+  const [hasError, setHasError] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // TODO: Integrate Supabase authentication. Submit is disabled until then.
+    setPending(true);
+    setMessage("");
+    setHasError(false);
+
+    const formData = new FormData(event.currentTarget);
+    const name = String(formData.get("name") ?? "").trim();
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+    const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setMessage("Enter a valid email address.");
+      setHasError(true);
+      setPending(false);
+      return;
+    }
+
+    if (!password || !confirmPassword) {
+      setMessage("Enter and confirm your password.");
+      setHasError(true);
+      setPending(false);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setMessage("Passwords do not match.");
+      setHasError(true);
+      setPending(false);
+      return;
+    }
+
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: name ? { full_name: name } : {},
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        },
+      });
+
+      if (error) {
+        setMessage(error.message);
+        setHasError(true);
+        return;
+      }
+
+      if (data.session) {
+        router.replace("/dashboard");
+        router.refresh();
+        return;
+      }
+
+      setMessage("Check your email for a confirmation link to finish signing up.");
+    } catch {
+      setMessage("We couldn’t reach the sign-up service. Check your connection and try again.");
+      setHasError(true);
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -24,7 +91,7 @@ export default function SignupForm() {
           name="name"
           type="text"
           autoComplete="name"
-          className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-slate-400 focus:border-accent focus:ring-2 focus:ring-accent/20"
+          className="form-field mt-1.5"
           placeholder="Alex Rivera"
         />
       </div>
@@ -42,7 +109,7 @@ export default function SignupForm() {
           type="email"
           autoComplete="email"
           required
-          className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-slate-400 focus:border-accent focus:ring-2 focus:ring-accent/20"
+          className="form-field mt-1.5"
           placeholder="you@example.com"
         />
       </div>
@@ -60,7 +127,7 @@ export default function SignupForm() {
           type="password"
           autoComplete="new-password"
           required
-          className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-slate-400 focus:border-accent focus:ring-2 focus:ring-accent/20"
+          className="form-field mt-1.5"
           placeholder="Create a password"
         />
       </div>
@@ -78,27 +145,31 @@ export default function SignupForm() {
           type="password"
           autoComplete="new-password"
           required
-          className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-slate-400 focus:border-accent focus:ring-2 focus:ring-accent/20"
+          className="form-field mt-1.5"
           placeholder="Confirm your password"
         />
       </div>
 
-      <p
-        className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs leading-relaxed text-muted"
-        role="note"
-      >
-        TODO: Authentication is not connected yet. Sign Up stays disabled until
-        Supabase auth is integrated.
-      </p>
+      {message ? (
+        <p
+          id="signup-message"
+          className={`rounded-lg border px-3 py-2.5 text-sm leading-relaxed ${
+            hasError
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-emerald-200 bg-emerald-50 text-emerald-700"
+          }`}
+          role={hasError ? "alert" : "status"}
+        >
+          {message}
+        </p>
+      ) : null}
 
       <button
         type="submit"
-        disabled
-        aria-disabled="true"
-        title="Authentication not integrated yet"
-        className="w-full cursor-not-allowed rounded-lg bg-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-500"
+        disabled={pending}
+        className="primary-button w-full"
       >
-        Sign Up
+        {pending ? "Creating account..." : "Sign Up"}
       </button>
 
       <p className="text-center text-sm text-muted">

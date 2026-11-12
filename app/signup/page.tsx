@@ -11,7 +11,7 @@ export default function SignupPage() {
   return (
     <AuthShell
       title="Create your account"
-      subtitle="Sign up to upload PDFs and ask questions. Authentication will be connected in a later milestone."
+      subtitle="Sign up to upload PDFs and ask questions."
     >
       <SignupForm />
     </AuthShell>
